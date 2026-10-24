@@ -1,5 +1,19 @@
+const crypto = require('crypto');
 const express = require("express");
 const router = express.Router();
+
+// Reject structured query operators before authentication or database lookups.
+router.use(['/login', '/signup'], (req, res, next) => {
+    if (req.method !== 'POST') return next()
+    const body = req.body || {}
+    if (typeof body.username !== 'string' || !body.username.trim() ||
+        body.username.length > 128 || typeof body.password !== 'string' ||
+        !body.password || Buffer.byteLength(body.password, 'utf8') > 72) {
+        return res.status(400).json({ message: 'Invalid credentials format' })
+    }
+    return next()
+})
+
 const passport = require("passport");
 const mailer = require('../configs/nodemailer.config')
 
@@ -14,11 +28,11 @@ router.get("/signup", (req, res) => res.render("auth/signup"));
 router.post("/signup", (req, res, next) => {
 
     //email field added
-    console.log(req.body);
+
 
   const { username, email, password } = req.body;
 
-  if (!username || !password || !email) {
+  if (!username || !password || typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     res.render("auth/signup", {
       errorMsg: "Rellena el usuario, el email y la contraseña",
     });
@@ -34,11 +48,7 @@ router.post("/signup", (req, res, next) => {
         return;
       }
 
-      const characters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      let token = "";
-      for (let i = 0; i < 25; i++) {
-        token += characters[Math.floor(Math.random() * characters.length)];
-      }
+      const token = crypto.randomBytes(32).toString('hex');
 
       const salt = bcrypt.genSaltSync(bcryptSalt);
       const hashPass = bcrypt.hashSync(password, salt);
@@ -52,8 +62,7 @@ router.post("/signup", (req, res, next) => {
                 from: '"Lab Nodemailer" <tehasalidobien@ironh.com>',
                 to: newUser.email,
                 subject: '[Email confirmation]',
-                text: `Hi there ${newUser.username}! Go to http://localhost:3000/auth/confirm/${newUser.confirmationCode} to confirm your E-mail `,
-                html: `<b>Hi ${newUser.username}.  Wellcome!! Please <a href="http://localhost:3000/auth/confirm/${newUser.confirmationCode}">click here</a> to confirm your E-mail</b>`
+                text: `Hi there ${newUser.username}! Go to http://localhost:3000/auth/confirm/${newUser.confirmationCode} to confirm your E-mail `
             })
                 .then(info => console.log('email-sent', info ))
                 .catch(error => console.log(error));
@@ -81,9 +90,11 @@ router.post(
 );
 
 // User logout
-router.get("/logout", (req, res) => {
-  req.logout();
-  res.redirect("/login");
+router.get("/logout", (req, res, next) => {
+  req.logout(err => {
+    if (err) return next(err);
+    res.redirect("/login");
+  });
 });
 
 module.exports = router;
