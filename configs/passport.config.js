@@ -1,3 +1,10 @@
+
+// Configure a strong deployment secret; development uses an ephemeral secret.
+const sessionSecret = process.env.SESSION_SECRET ||
+    (process.env.NODE_ENV !== 'production' ? require('crypto').randomBytes(32).toString('hex') : null)
+if (!sessionSecret || sessionSecret.length < 32) {
+    throw new Error('SESSION_SECRET must contain at least 32 characters')
+}
 const session = require("express-session")
 const bcrypt = require("bcrypt")
 const passport = require("passport")
@@ -9,9 +16,10 @@ const User = require('../models/user.model')
 module.exports = app => {
 
     app.use(session({
-        secret: "passport-app-webmad0320",
-        resave: true,
-        saveUninitialized: true
+        secret: sessionSecret,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
     }))
 
     passport.serializeUser((user, next) => next(null, user._id))
