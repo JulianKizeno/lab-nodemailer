@@ -8,10 +8,15 @@ const User = require('../models/user.model')
 
 module.exports = app => {
 
+    if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+        throw new Error("SESSION_SECRET must contain at least 32 characters")
+    }
+
     app.use(session({
-        secret: "passport-app-webmad0320",
-        resave: true,
-        saveUninitialized: true
+        secret: process.env.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { httpOnly: true, sameSite: "lax", secure: app.get("env") === "production" }
     }))
 
     passport.serializeUser((user, next) => next(null, user._id))
@@ -26,6 +31,9 @@ module.exports = app => {
     app.use(flash())
 
     passport.use(new LocalStrategy({ passReqToCallback: true }, (req, username, password, next) => {
+        if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
+            return next(null, false, { message: "Invalid credentials" })
+        }
         User.findOne({ username })
             .then(user => {
                 if (!user) {
