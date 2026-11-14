@@ -7,6 +7,9 @@ const User = require("../models/user.model");
 
 const bcrypt = require("bcrypt");
 const bcryptSalt = 10;
+const escapeHtml = value => value.replace(/[&<>"']/g, ch => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[ch]));
 
 // User signup
 router.get("/signup", (req, res) => res.render("auth/signup"));
@@ -14,11 +17,11 @@ router.get("/signup", (req, res) => res.render("auth/signup"));
 router.post("/signup", (req, res, next) => {
 
     //email field added
-    console.log(req.body);
+
 
   const { username, email, password } = req.body;
 
-  if (!username || !password || !email) {
+  if (typeof username !== "string" || typeof password !== "string" || typeof email !== "string" || !username || !password || !email) {
     res.render("auth/signup", {
       errorMsg: "Rellena el usuario, el email y la contraseña",
     });
@@ -34,11 +37,7 @@ router.post("/signup", (req, res, next) => {
         return;
       }
 
-      const characters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      let token = "";
-      for (let i = 0; i < 25; i++) {
-        token += characters[Math.floor(Math.random() * characters.length)];
-      }
+      const token = require('crypto').randomBytes(32).toString('hex');
 
       const salt = bcrypt.genSaltSync(bcryptSalt);
       const hashPass = bcrypt.hashSync(password, salt);
@@ -53,7 +52,7 @@ router.post("/signup", (req, res, next) => {
                 to: newUser.email,
                 subject: '[Email confirmation]',
                 text: `Hi there ${newUser.username}! Go to http://localhost:3000/auth/confirm/${newUser.confirmationCode} to confirm your E-mail `,
-                html: `<b>Hi ${newUser.username}.  Wellcome!! Please <a href="http://localhost:3000/auth/confirm/${newUser.confirmationCode}">click here</a> to confirm your E-mail</b>`
+                html: `<b>Hi ${escapeHtml(newUser.username)}.  Wellcome!! Please <a href="http://localhost:3000/auth/confirm/${newUser.confirmationCode}">click here</a> to confirm your E-mail</b>`
             })
                 .then(info => console.log('email-sent', info ))
                 .catch(error => console.log(error));
@@ -81,9 +80,11 @@ router.post(
 );
 
 // User logout
-router.get("/logout", (req, res) => {
-  req.logout();
-  res.redirect("/login");
+router.get("/logout", (req, res, next) => {
+  req.logout(err => {
+    if (err) return next(err);
+    res.redirect("/login");
+  });
 });
 
 module.exports = router;
